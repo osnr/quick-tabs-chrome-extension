@@ -34,6 +34,8 @@ var tabsMissingContentScripts = [];
 
 var lastWindow = null;
 
+var fileWriter = null;
+
 var re = /^https?:\/\/.*/;
 function isWebUrl(url) {
   return re.exec(url);
@@ -191,6 +193,24 @@ function indexOfTabByUrl(tabArray, url) {
   return -1;
 }
 
+function initFile(callback) {
+  window.requestFileSystem = window.requestFileSystem || window.webkitRequestFileSystem;
+  window.requestFileSystem(PERSISTENT, 30*1024*1024, function(fs) {
+    fs.root.getFile('tabcount.csv', {create: true}, function(fileEntry) {
+      console.log(fileEntry.toURL());
+      fileEntry.createWriter(function(fw) {
+        fw.seek(fw.length);
+        fileWriter = fw;
+
+        fw.onerror = function() { console.log('error'); };
+        callback();
+      });
+    });
+  }, function(e) {
+    console.log('FS request error', e);
+  });
+}
+
 function initBadgeIcon() {
   // set the badge colour
   chrome.browserAction.setBadgeBackgroundColor({color:[32, 7, 114, 255]});
@@ -205,6 +225,23 @@ function initBadgeIcon() {
  */
 function updateBadgeText(val) {
   chrome.browserAction.setBadgeText({text:val + ""});
+
+  if (fileWriter) {
+    oldCallback = fileWriter.onwriteend;
+    writeVal = function() {
+      fileWriter.onwriteend = oldCallback;
+
+      var line = (new Date()).getTime() + "," + val + "\n";
+      var blob = new Blob([line], {type: 'text/plain'});
+      fileWriter.write(blob);
+    };
+
+    if (fileWriter.readyState != fileWriter.WRITING) {
+      writeVal();
+    } else {
+      fileWriter.onwriteend = writeVal;
+    }
+  }
 }
 
 function updateBadgeTitle() {
@@ -302,8 +339,7 @@ function switchTabs(tabid, callback) {
 
 function init() {
 
-  // init the badge text
-  initBadgeIcon();
+  initFile(initBadgeIcon);
 
   // bind the shortcut keys
   rebindShortcutKeys();
