@@ -196,7 +196,7 @@ function indexOfTabByUrl(tabArray, url) {
 function initFile(callback) {
   window.requestFileSystem = window.requestFileSystem || window.webkitRequestFileSystem;
   window.requestFileSystem(PERSISTENT, 30*1024*1024, function(fs) {
-    fs.root.getFile('tabcount.csv', {create: true}, function(fileEntry) {
+    fs.root.getFile('tabcounts.csv', {create: true}, function(fileEntry) {
       console.log(fileEntry.toURL());
       fileEntry.createWriter(function(fw) {
         fw.seek(fw.length);
@@ -227,19 +227,10 @@ function updateBadgeText(val) {
   chrome.browserAction.setBadgeText({text:val + ""});
 
   if (fileWriter) {
-    oldCallback = fileWriter.onwriteend;
-    writeVal = function() {
-      fileWriter.onwriteend = oldCallback;
-
+    if (fileWriter.readyState != fileWriter.WRITING) {
       var line = (new Date()).getTime() + "," + val + "\n";
       var blob = new Blob([line], {type: 'text/plain'});
       fileWriter.write(blob);
-    };
-
-    if (fileWriter.readyState != fileWriter.WRITING) {
-      writeVal();
-    } else {
-      fileWriter.onwriteend = writeVal;
     }
   }
 }
